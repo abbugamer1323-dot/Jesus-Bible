@@ -98,17 +98,6 @@ body::before{
 }
 button,input,textarea,select{font:inherit;color:inherit;}
 button{border:0;cursor:pointer;background:none;}
-/* iOS touch recovery: keep the page tappable/scrollable on first load. Modal-open still owns its lock. */
-html.ios-touch-ready:not(.modal-open), html.ios-touch-ready:not(.modal-open) body{
-  overflow-y:auto!important;
-  touch-action:pan-y!important;
-  -webkit-overflow-scrolling:touch;
-}
-html.ios-touch-ready:not(.modal-open) body{
-  position:static!important;
-  top:auto!important;left:auto!important;right:auto!important;width:100%!important;
-}
-
 img{display:block;max-width:100%;}
 ::selection{background:rgba(90,108,240,.3);}
 ::-webkit-scrollbar{width:6px;height:6px;}
@@ -2985,12 +2974,6 @@ html[data-theme="sepia"] .app-header{background:rgba(255,249,237,.99)!important;
 .app{padding-top:calc(92px + env(safe-area-inset-top))!important;}
 @media(max-width:520px){.app-header{padding-left:12px!important;padding-right:12px!important;}.brand{min-width:0!important;}.brand img{max-width:100%!important;max-height:52px!important;object-fit:contain!important;}}
 </style>
-<script id="jesus-ios-fast-boot">
-(function(){try{var ua=navigator.userAgent||"";var ios=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);if(ios)document.documentElement.classList.add("jesus-ios-fast-boot");}catch(_){}})();
-</script>
-<style id="jesus-ios-fast-boot-style">
-html.jesus-ios-fast-boot #splash{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}
-</style>
 </head>
 <body>
 
@@ -3000,29 +2983,6 @@ html.jesus-ios-fast-boot #splash{display:none!important;visibility:hidden!import
   <div class="splash-sub">Holy Bible</div>
   <div class="splash-bar"><i></i></div>
 </div>
-
-<!-- iOS FIRST-PAINT BOOT GUARD: hide the splash before the rest of this large document finishes parsing. -->
-<script id="ios-first-paint-boot-guard">
-(function(){
-  "use strict";
-  var done=false;
-  function releaseSplash(){
-    if(done) return;
-    var s=document.getElementById("splash");
-    if(!s) return;
-    done=true;
-    s.classList.add("gone");
-    window.setTimeout(function(){ try{s.remove();}catch(_){} }, 280);
-  }
-  // Run as soon as this point in the HTML is parsed, then again on the first frames.
-  try{ window.requestAnimationFrame(function(){
-    window.requestAnimationFrame(releaseSplash);
-  }); }catch(_){}
-  window.setTimeout(releaseSplash, 450);
-  document.addEventListener("DOMContentLoaded", releaseSplash, {once:true});
-  window.addEventListener("pageshow", releaseSplash, {once:false, passive:true});
-})();
-</script>
 
 <div id="offlineBar">You are offline</div>
 
@@ -10143,7 +10103,7 @@ function renderHero(){
     div.innerHTML = `
       <img alt="${esc(s.title || "Jesus")}" loading="eager" fetchpriority="${i === 0 ? "high" : "auto"}" decoding="async"
            style="object-position:${esc(s.pos || "center center")}"
-           onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='https://upload.wikimedia.org/wikipedia/commons/a/a7/Jacopo_Tintoretto_-_Christ_at_the_Sea_of_Galilee_-_WGA22616.jpg';}else{this.removeAttribute('src');this.style.display='none';this.parentElement.classList.add('img-failed');}">
+           onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='https://upload.wikimedia.org/wikipedia/commons/a/a7/Jacopo_Tintoretto_-_Christ_at_the_Sea_of_Galilee_-_WGA22616.jpg';}else{this.removeAttribute('src');this.parentElement.classList.add('img-failed');}">
       <div class="hero-content">
         <div class="hero-title">${esc(s.title || "Jesus Christ")}</div>
         <div class="hero-verse" id="heroVerse${i}">Loading Scripture</div>
@@ -11072,12 +11032,9 @@ function updateFeatureVisibility(){
      version.json file is required.
 ========================================================= */
 const IOS_UPDATE_CHECK_MS = 90000;
-const IOS_UPDATE_BOOT_DELAY_MS = 30000;
-const IOS_UPDATE_REFRESH_GUARD_MS = 10 * 60 * 1000;
 const IOS_UPDATE_SKIP_KEY = "jesus_ios_update_last_version";
 const IOS_UPDATE_REFRESH_KEY = "jesus_ios_update_refreshing";
 let iosUpdateTimer = 0;
-const iosUpdateBootAt = Date.now();
 
 function getLiveHtmlUrl(){
   try{
@@ -11096,14 +11053,15 @@ function extractRemoteAppVersion(text){
 }
 
 function showIOSRefreshing(){
-  // Silent background refresh: never block the app with an update popup.
-  return;
+  if(document.getElementById("iosAutoUpdating")) return;
+  const el=document.createElement("div");
+  el.id="iosAutoUpdating";
+  el.innerHTML='<div class="ios-auto-update-card"><div class="ios-auto-update-icon">↻</div><div class="ios-auto-update-title">Updating JESUS Bible…</div><div class="ios-auto-update-sub">Loading the latest version</div></div>' ;
+  document.body.appendChild(el);
 }
 
 async function checkIOSAutoUpdate(force=false){
   if(!IS_IOS && !IS_GITHUB_PAGES) return false;
-  // Never let the initial iOS page boot depend on update checking.
-  if(Date.now() - iosUpdateBootAt < IOS_UPDATE_BOOT_DELAY_MS) return false;
   if(!navigator.onLine && !force) return false;
   try{
     const base=getLiveHtmlUrl();
@@ -11138,16 +11096,13 @@ async function checkIOSAutoUpdate(force=false){
     }
 
     try{localStorage.setItem(IOS_UPDATE_SKIP_KEY,remoteVersion);}catch(_){}
-    // Use a persistent time guard so iOS navigation/reload can never create a refresh loop.
-    let lastRefresh=0;
-    try{lastRefresh=Number(localStorage.getItem(IOS_UPDATE_REFRESH_KEY)||0)||0;}catch(_){}
-    if(lastRefresh && Date.now()-lastRefresh<IOS_UPDATE_REFRESH_GUARD_MS) return false;
-    try{localStorage.setItem(IOS_UPDATE_REFRESH_KEY,String(Date.now()));}catch(_){}
-    // Refresh silently in the background; no modal, blur, spinner or blocking layer.
+    if(sessionStorage.getItem(IOS_UPDATE_REFRESH_KEY)==="1") return false;
+    sessionStorage.setItem(IOS_UPDATE_REFRESH_KEY,"1");
+    showIOSRefreshing();
     setTimeout(()=>{
       const bust=base+(base.includes("?")?"&":"?")+"__jesus_refresh="+Date.now();
-      try{window.location.replace(bust);}catch(_){try{window.location.reload();}catch(__){}}
-    },500);
+      window.location.replace(bust);
+    },700);
     return true;
   }catch(e){
     console.warn("Web auto-update check failed",e);
@@ -11158,23 +11113,18 @@ async function checkIOSAutoUpdate(force=false){
 function initIOSAutoUpdate(){
   if(!IS_IOS && !IS_GITHUB_PAGES) return;
   // iOS/Web must never show the Android APK update prompt.
-  const p=$("updatePrompt"); if(p){ p.classList.remove("show"); p.style.display="none"; }
-  const q=$("quickUpdate"); if(q){ q.classList.remove("show"); q.style.display="none"; }
-  // Never run the update check during the initial boot. Let the app become fully usable first.
-  setTimeout(()=>checkIOSAutoUpdate(true),IOS_UPDATE_BOOT_DELAY_MS);
+  const p=$("updatePrompt"); if(p) p.classList.remove("show");
+  const q=$("quickUpdate"); if(q) q.style.display="none";
+  checkIOSAutoUpdate(true);
   clearInterval(iosUpdateTimer);
   iosUpdateTimer=setInterval(()=>{
     if(document.visibilityState==="visible") checkIOSAutoUpdate(false);
   },IOS_UPDATE_CHECK_MS);
-  window.addEventListener("pageshow",()=>{
-    if(Date.now()-iosUpdateBootAt>=IOS_UPDATE_BOOT_DELAY_MS) checkIOSAutoUpdate(true);
-  },{passive:true});
+  window.addEventListener("pageshow",()=>checkIOSAutoUpdate(true),{passive:true});
   document.addEventListener("visibilitychange",()=>{
-    if(document.visibilityState==="visible" && Date.now()-iosUpdateBootAt>=IOS_UPDATE_BOOT_DELAY_MS) checkIOSAutoUpdate(true);
+    if(document.visibilityState==="visible") checkIOSAutoUpdate(true);
   });
-  window.addEventListener("online",()=>{
-    if(Date.now()-iosUpdateBootAt>=IOS_UPDATE_BOOT_DELAY_MS) checkIOSAutoUpdate(true);
-  },{passive:true});
+  window.addEventListener("online",()=>checkIOSAutoUpdate(true),{passive:true});
 }
 
 /* =========================================================
@@ -12750,7 +12700,7 @@ function hideSplash(){
   const splash = $("splash");
   if(!splash) return;
   splash.classList.add("gone");
-  setTimeout(()=>{try{splash.remove();}catch(_){ }}, 280);
+  setTimeout(()=>splash.remove(), 800);
 }
 
 updateBibleProgressUI();
@@ -12758,8 +12708,7 @@ renderJournal();
 renderAudioVoices();
 
 // Safety boot: never let a failed API/local-data call trap the app on the splash screen.
-setTimeout(hideSplash, 700);
-window.addEventListener("pageshow", hideSplash, {passive:true});
+setTimeout(hideSplash, 1800);
 
 async function init(){
   repairLocalStorage();
@@ -13151,11 +13100,13 @@ window.addEventListener("popstate", ()=>{
 });
 if(!history.state?.appShell) history.replaceState({appShell:true},"",location.href);
 
-/* iOS tap safety: do not cancel document touchend; Safari needs the native touch→click synthesis. */
+/* Prevent accidental double-tap zoom */
 let lastTouchEnd = 0;
 document.addEventListener("touchend", e => {
-  lastTouchEnd = Date.now();
-}, { passive:true });
+  const now = Date.now();
+  if(now - lastTouchEnd <= 300) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive:false });
 
 document.addEventListener("DOMContentLoaded",setupParallel);
 
@@ -13208,8 +13159,8 @@ document.addEventListener("keydown",e=>{
     const s=document.getElementById("splash");
     if(s){s.classList.add("gone");s.setAttribute("aria-hidden","true");}
   };
-  if(document.readyState!=="loading")setTimeout(hideSplash,120);
-  else document.addEventListener("DOMContentLoaded",()=>setTimeout(hideSplash,120),{once:true});
+  if(document.readyState!=="loading")setTimeout(hideSplash,250);
+  else document.addEventListener("DOMContentLoaded",()=>setTimeout(hideSplash,250),{once:true});
 })();
 </script>
 
@@ -14068,43 +14019,6 @@ function applyAudioSourceFilter(){
   window.addEventListener('pageshow',run,{passive:true});
   var mo=new MutationObserver(function(){hideAndroidUpdateUI();});
   mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
-})();
-</script>
-
-<script id="ios-final-interaction-recovery">
-(function(){
-  "use strict";
-  function recover(){
-    try{
-      var root=document.documentElement, body=document.body;
-      if(!root || !body) return;
-      root.classList.add("ios-touch-ready");
-      var openModal=root.querySelectorAll(".modal.show");
-      if(!openModal.length){
-        root.classList.remove("modal-open");
-        body.classList.remove("modal-open");
-        body.classList.remove("scroll-locked");
-        body.style.position=""; body.style.top=""; body.style.left="";
-        body.style.right=""; body.style.width=""; body.style.overflow="";
-      }
-      var splash=document.getElementById("splash");
-      if(splash){splash.classList.add("gone");splash.setAttribute("aria-hidden","true");}
-      var maint=document.getElementById("maintenance");
-      if(maint && !maint.classList.contains("show")) maint.style.display="none";
-      var update=document.getElementById("updatePrompt");
-      if(update && !update.classList.contains("show")) update.style.display="none";
-      var home=document.getElementById("home");
-      if(home && typeof window.showPage==='function'){
-        try{window.showPage("home");}catch(_){}
-      }
-      if(typeof window.renderHero==='function'){ try{window.renderHero();}catch(_){} }
-    }catch(_){}
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',recover,{once:true});
-  else recover();
-  window.addEventListener('pageshow',recover,{passive:true});
-  setTimeout(recover,600);
-  setTimeout(recover,1800);
 })();
 </script>
 </body>
