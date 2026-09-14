@@ -11038,7 +11038,7 @@ function getLiveHtmlUrl(){
 }
 
 function extractRemoteAppVersion(text){
-  const m = String(text || "").match(/<meta\s+name=["']jesus-app-version["']\s+content=["']([^"']+)["']/i);
+  const m = String(text || "").match(/<meta\s+name=["'](?:jesus-web-version|jesus-app-version)["']\s+content=["']([^"']+)["']/i);
   return m ? String(m[1]).trim() : "";
 }
 
@@ -11051,7 +11051,7 @@ function showIOSRefreshing(){
 }
 
 async function checkIOSAutoUpdate(force=false){
-  if(!IS_IOS) return false;
+  if(!IS_IOS && !IS_GITHUB_PAGES) return false;
   if(!navigator.onLine && !force) return false;
   try{
     const base=getLiveHtmlUrl();
@@ -11095,7 +11095,7 @@ async function checkIOSAutoUpdate(force=false){
     },700);
     return true;
   }catch(e){
-    console.warn("iOS auto-update check failed",e);
+    console.warn("Web auto-update check failed",e);
     return false;
   }
 }
@@ -11220,7 +11220,7 @@ async function checkForUpdate(){
   }catch(e){console.warn("Update check failed",e);}
 }
 async function downloadAndUpdate(){
-  if(IS_IOS){
+  if(IS_IOS || IS_GITHUB_PAGES){
     await checkIOSAutoUpdate(true);
     return;
   }
