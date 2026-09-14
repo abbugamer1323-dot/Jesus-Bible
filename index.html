@@ -113,7 +113,10 @@ img{display:block;max-width:100%;}
   background:linear-gradient(160deg,#080d1e,#131b3e 45%,#2a1e5c);
   transition:opacity .6s var(--ease),visibility .6s;
 }
-#splash.gone{opacity:0;visibility:hidden;pointer-events:none;}
+#splash.gone{opacity:0;visibility:hidden;pointer-events:none;animation:none!important;}
+/* Fail-open guard: even when a later JavaScript block fails, Safari must not stay trapped on splash. */
+#splash:not(.gone){animation:splashFailOpen 1.6s 1.4s both;}
+@keyframes splashFailOpen{0%,65%{opacity:1;visibility:visible;pointer-events:auto;}100%{opacity:0;visibility:hidden;pointer-events:none;}}
 .splash-logo{
   width:104px;height:104px;border-radius:32px;
   display:grid;place-items:center;
@@ -2993,6 +2996,46 @@ html[data-theme="sepia"] .app-header{background:rgba(255,249,237,.99)!important;
   <p id="maintenanceMsg">We are updating the app. Please check back shortly.</p>
 </div>
 
+<script id="ios-legacy-compat-guard">
+(function(){
+  "use strict";
+  // Keep older iOS WebKit versions from failing on optional modern APIs.
+  if(!Promise.allSettled){
+    Promise.allSettled=function(iterable){
+      var arr=Array.from(iterable||[]);
+      return Promise.all(arr.map(function(p){
+        return Promise.resolve(p).then(
+          function(value){return {status:"fulfilled",value:value};},
+          function(reason){return {status:"rejected",reason:reason};}
+        );
+      }));
+    };
+  }
+  window.addEventListener("error",function(){try{var s=document.getElementById("splash");if(s)s.classList.add("gone");}catch(_){}});
+  window.addEventListener("unhandledrejection",function(){try{var s=document.getElementById("splash");if(s)s.classList.add("gone");}catch(_){}});
+})();
+</script>
+<script id="ios-splash-boot-guard">
+(function(){
+  "use strict";
+  var revealed=false;
+  function reveal(){
+    if(revealed) return;
+    var splash=document.getElementById("splash");
+    if(!splash) return;
+    revealed=true;
+    splash.classList.add("gone");
+    var app=document.querySelector(".app");
+    if(app){ app.style.visibility="visible"; app.style.opacity="1"; }
+    setTimeout(function(){ if(splash.parentNode) splash.parentNode.removeChild(splash); },250);
+  }
+  window.__JESUS_REVEAL_SPLASH=reveal;
+  setTimeout(reveal,1400);
+  window.addEventListener("error",function(){ setTimeout(reveal,0); },true);
+  window.addEventListener("unhandledrejection",function(){ setTimeout(reveal,0); },true);
+})();
+</script>
+
 <!-- PARTNER RESUME CENTER -->
 <div class="modal" id="partnerResumeModal" aria-hidden="true">
   <div class="sheet partner-sheet">
@@ -4493,19 +4536,21 @@ function refKey(o){ return `${o.book}|${o.chapter}|${o.verse}`; }
 ========================================================= */
 async function api(path, timeout){
   timeout = timeout || 20000;
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), timeout);
+  const Controller = window.AbortController;
+  const controller = Controller ? new Controller() : null;
+  const timer = setTimeout(()=>{ try{ controller && controller.abort(); }catch(_){} }, timeout);
   try{
-    const res = await fetch(`${API}/${path}`, {
+    const options = {
       method:"GET", cache:"no-store",
-      signal:controller.signal,
       headers:{ "Accept":"application/json" }
-    });
+    };
+    if(controller && controller.signal) options.signal = controller.signal;
+    const res = await fetch(`${API}/${path}`, options);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   }catch(err){
     if(!navigator.onLine) showOfflineNotice("You are offline · Turn on internet to use this feature",15000);
-    if(err.name === "AbortError") throw new Error("Request timed out");
+    if(err && err.name === "AbortError") throw new Error("Request timed out");
     throw err;
   }finally{ clearTimeout(timer); }
 }
@@ -12697,32 +12742,53 @@ $("audioApiRefreshBtn")?.addEventListener("click",()=>loadApiBibleAudioBibles())
 $("audioApiBibleSelect")?.addEventListener("change",()=>loadApiBibleBooks());
 $("audioApiUseBtn")?.addEventListener("click",()=>loadApiBibleAudioBibles());
 function hideSplash(){
+  try{
+    if(typeof window.__JESUS_REVEAL_SPLASH === "function") return window.__JESUS_REVEAL_SPLASH();
+  }catch(_){}
   const splash = $("splash");
   if(!splash) return;
   splash.classList.add("gone");
-  setTimeout(()=>splash.remove(), 800);
+  setTimeout(()=>splash.remove(), 250);
 }
 
-updateBibleProgressUI();
-renderJournal();
-renderAudioVoices();
+try{ updateBibleProgressUI(); }catch(e){ console.warn("JESUS boot: progress UI",e); }
+try{ renderJournal(); }catch(e){ console.warn("JESUS boot: journal",e); }
+try{ renderAudioVoices(); }catch(e){ console.warn("JESUS boot: audio voices",e); }
 
 // Safety boot: never let a failed API/local-data call trap the app on the splash screen.
-setTimeout(hideSplash, 1800);
+setTimeout(hideSplash, 900);
 
 async function init(){
-  repairLocalStorage();
-  requestPersistentStorage();
-  applyTheme();
-  applyUIStyle();
-  applyIconStyle();
-  document.querySelectorAll("[data-ui-style]").forEach(b=>b.addEventListener("click",()=>setUIStyle(b.dataset.uiStyle)));
-  document.querySelectorAll(".icon-style-option[data-icon-style]").forEach(b=>b.addEventListener("click",()=>setIconStyle(b.dataset.iconStyle)));
-  applyAccent(localStorage.getItem("accentColor") || config.ui?.accent || "#5a6cf0");
-  applyMotion(localStorage.getItem("animations") !== "0");
-  updateOnlineStatus();
+  // iOS/Safari boot must be fail-soft: one optional feature must never block the core app.
+  const safe = (label, fn) => {
+    try { return fn(); }
+    catch (e) { try { console.warn("JESUS boot:", label, e); } catch (_) {} return null; }
+  };
 
-  const cached = getJSON("remoteConfig", null);
+  safe("local storage repair", repairLocalStorage);
+  safe("persistent storage request", requestPersistentStorage);
+  safe("theme", applyTheme);
+  safe("ui style", applyUIStyle);
+  safe("icon style", applyIconStyle);
+
+  safe("ui-style listeners", ()=>{
+    document.querySelectorAll("[data-ui-style]").forEach(b=>b.addEventListener("click",()=>setUIStyle(b.dataset.uiStyle)));
+  });
+  safe("icon-style listeners", ()=>{
+    document.querySelectorAll(".icon-style-option[data-icon-style]").forEach(b=>b.addEventListener("click",()=>setIconStyle(b.dataset.iconStyle)));
+  });
+  safe("accent", ()=>{
+    const savedAccent = (()=>{ try{return localStorage.getItem("accentColor");}catch(_){return null;} })();
+    applyAccent(savedAccent || config.ui?.accent || "#5a6cf0");
+  });
+  safe("motion", ()=>{
+    let enabled = true;
+    try { enabled = localStorage.getItem("animations") !== "0"; } catch (_) {}
+    applyMotion(enabled);
+  });
+  safe("online state", updateOnlineStatus);
+
+  const cached = safe("remote config cache", ()=>getJSON("remoteConfig", null));
   if(cached){
     config = deepMergeConfig(DEFAULT_CONFIG, cached);
     if(!Array.isArray(config.festivals.custom)) config.festivals.custom = [];
@@ -12733,50 +12799,75 @@ async function init(){
     config.heroSlides = HERO_IMAGES.slice();
   }
 
-  $("versionChip").textContent = "v" + APP_VERSION;
-  $("versionChip2").textContent = "v" + APP_VERSION;
-  $("swLang")?.classList.toggle("on", language === "hi");
-  $("swHaptic")?.classList.toggle("on", hapticOn);
-
-  // Render immediately from local state. Refresh cloud config in the background.
-  applyConfig();
-  remoteLoad(false).then(()=>{ try{ applyConfig(); }catch(_){} });
-  renderBooks();
-  renderHomeBooks();
-  renderSaved();
-  renderBookmarks();
-  renderNotes();
-  renderPlans();
-  renderFestivals();
-  updateStreak();
-  updateContinueCard();
-  updateDailyButtons();
-  updateSearchScopeInfo();
-  setupChristianSongs();
-  showPage("home");
-
-  refreshOfflineBibleStatus();
-
-  loadTranslationList().then(list=>{
-    const t=list.find(x=>x.id===bibleTranslation);
-    if(t){
-      $("languageButton").textContent=translationLabel(t);
-      document.documentElement.setAttribute("dir", t.textDirection === "rtl" ? "rtl" : "ltr");
-    }else{
-      $("languageButton").textContent = language === "hi" ? "Hindi Bible" : "English Bible";
-    }
-  }).catch(()=>{
-    $("languageButton").textContent = language === "hi" ? "Hindi Bible" : "English Bible";
+  safe("version labels", ()=>{
+    const v1=$("versionChip"), v2=$("versionChip2");
+    if(v1) v1.textContent = "v" + APP_VERSION;
+    if(v2) v2.textContent = "v" + APP_VERSION;
+    $("swLang")?.classList.toggle("on", language === "hi");
+    $("swHaptic")?.classList.toggle("on", hapticOn);
   });
-  loadDaily();
-  checkBibleConnection();
 
-  setInterval(()=>{ if(document.visibilityState === "visible") remoteLoad(false); }, 60000);
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState === "visible") remoteLoad(false); });
-window.addEventListener("online",()=>remoteLoad(false));
+  // Apply the shell and reveal it BEFORE optional/network-heavy features.
+  safe("config", applyConfig);
+  safe("show home", ()=>showPage("home"));
+  safe("splash reveal", hideSplash);
 
-  // Normal boot transition. Do not keep the user behind the splash for network work.
-  setTimeout(hideSplash, 100);
+  // Keep optional feature rendering independent: Safari can lose one API without losing the app.
+  [
+    ["books", renderBooks],
+    ["home books", renderHomeBooks],
+    ["saved", renderSaved],
+    ["bookmarks", renderBookmarks],
+    ["notes", renderNotes],
+    ["plans", renderPlans],
+    ["festivals", renderFestivals],
+    ["streak", updateStreak],
+    ["continue card", updateContinueCard],
+    ["daily buttons", updateDailyButtons],
+    ["search scope", updateSearchScopeInfo],
+    ["christian songs", setupChristianSongs],
+    ["offline status", refreshOfflineBibleStatus],
+    ["daily", loadDaily],
+    ["bible connection", checkBibleConnection]
+  ].forEach(([label, fn])=>safe(label, fn));
+
+  // Network refreshes are always best-effort and never block first paint.
+  try {
+    const r = remoteLoad(false);
+    if(r && typeof r.then==="function") r.then(()=>safe("remote config apply", applyConfig)).catch(()=>{});
+  } catch (_) {}
+
+  try {
+    const r = loadTranslationList();
+    if(r && typeof r.then==="function"){
+      r.then(list=>{
+        safe("translation label", ()=>{
+          const t=list.find(x=>x.id===bibleTranslation);
+          const btn=$("languageButton");
+          if(t){
+            if(btn) btn.textContent=translationLabel(t);
+            document.documentElement.setAttribute("dir", t.textDirection === "rtl" ? "rtl" : "ltr");
+          }else if(btn){
+            btn.textContent = language === "hi" ? "Hindi Bible" : "English Bible";
+          }
+        });
+      }).catch(()=>{
+        safe("translation fallback", ()=>{
+          const btn=$("languageButton");
+          if(btn) btn.textContent = language === "hi" ? "Hindi Bible" : "English Bible";
+        });
+      });
+    }
+  } catch (_) {}
+
+  safe("remote interval", ()=>{
+    setInterval(()=>{ if(document.visibilityState === "visible") remoteLoad(false); }, 60000);
+    document.addEventListener("visibilitychange",()=>{ if(document.visibilityState === "visible") remoteLoad(false); });
+    window.addEventListener("online",()=>remoteLoad(false));
+  });
+
+  // Final fail-open protection.
+  setTimeout(hideSplash, 250);
 }
 
 
@@ -13056,8 +13147,22 @@ function setupParallel(){
   if(am) am.addEventListener("click",e=>{if(e.target===am)closeModal("parallelActionModal");});
 }
 
-if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-else init();
+function safeBootInit(){
+  try{
+    var result=init();
+    if(result && typeof result.catch==="function") result.catch(function(err){
+      console.error("JESUS init failed",err);
+      try{ hideSplash(); }catch(_){}
+      try{ window.__JESUS_REVEAL_SPLASH?.(); }catch(_){}
+    });
+  }catch(err){
+    console.error("JESUS init failed",err);
+    try{ hideSplash(); }catch(_){}
+    try{ window.__JESUS_REVEAL_SPLASH?.(); }catch(_){}
+  }
+}
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", safeBootInit,{once:true});
+else safeBootInit();
 
 // Final video/back safety layer. The primary video controls live above; this block
 // only handles page lifecycle + Android/WebView back behavior and must not bind
