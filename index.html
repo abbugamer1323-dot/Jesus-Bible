@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
 <meta name="jesus-app-version" content="3.0.4">
+<meta name="jesus-web-version" content="1.0.0">
 <meta name="description" content="JESUS — Holy Bible. Read, search, save, memorise and share the Word of God.">
 <title>JESUS</title>
 <style>
@@ -4187,6 +4188,8 @@ html[data-theme="dark"] .app-header,html[data-theme="sepia"] .app-header{
 const APP_VERSION = "3.0.3";
 const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const IS_GITHUB_PAGES = /(^|\\.)github\\.io$/i.test(location.hostname);
+const GITHUB_WEB_VERSION = String(document.querySelector('meta[name="jesus-web-version"]')?.content || "1.0.0").trim();
 const IS_STANDALONE_IOS = IS_IOS && (window.navigator.standalone === true ||
   window.matchMedia?.("(display-mode: standalone)")?.matches === true);
 const API = "https://bible.helloao.org/api";
@@ -10976,7 +10979,7 @@ function applyConfig(){
   const updateQuick = $("quickUpdate");
   if(updateQuick){
     const ui = getUpdateInfo();
-    const showUpdate = !IS_IOS && ui.enabled && ui.timed && ui.hasPublishedFile && ui.isNewer && !!ui.url && !ui.acknowledged;
+    const showUpdate = !IS_IOS && !IS_GITHUB_PAGES && ui.enabled && ui.timed && ui.hasPublishedFile && ui.isNewer && !!ui.url && !ui.acknowledged;
     updateQuick.style.display = showUpdate ? "" : "none";
     updateQuick.title = ui.u.title || "Update";
   }
@@ -11012,9 +11015,9 @@ function updateFeatureVisibility(){
 }
 
 /* =========================================================
-   iOS / WEB AUTO UPDATE
+   iOS / GITHUB WEB AUTO UPDATE
    - Android keeps its existing APK update system below.
-   - iPhone/iPad checks the live GitHub Pages index.html itself.
+   - iPhone/iPad and GitHub Pages web users check the live index.html itself.
    - A version marker is read from the remote <head>, so no extra
      version.json file is required.
 ========================================================= */
@@ -11075,7 +11078,8 @@ async function checkIOSAutoUpdate(force=false){
 
     const remoteVersion=extractRemoteAppVersion(remoteText);
     if(!remoteVersion) return false;
-    const cmp=typeof cmpVersion==='function' ? cmpVersion(remoteVersion,APP_VERSION) : 0;
+    const localWebVersion = String(GITHUB_WEB_VERSION || "1.0.0").trim();
+    const cmp=typeof cmpVersion==='function' ? cmpVersion(remoteVersion,localWebVersion) : 0;
     if(cmp<=0){
       try{localStorage.setItem(IOS_UPDATE_SKIP_KEY,remoteVersion);}catch(_){}
       return false;
@@ -11097,7 +11101,7 @@ async function checkIOSAutoUpdate(force=false){
 }
 
 function initIOSAutoUpdate(){
-  if(!IS_IOS) return;
+  if(!IS_IOS && !IS_GITHUB_PAGES) return;
   // iOS/Web must never show the Android APK update prompt.
   const p=$("updatePrompt"); if(p) p.classList.remove("show");
   const q=$("quickUpdate"); if(q) q.style.display="none";
@@ -11191,7 +11195,7 @@ function showUpdateProgress(percent,status,label){
   if(status)$("updateProgressStatus").textContent=status;
 }
 async function checkForUpdate(){
-  if(IS_IOS){
+  if(IS_IOS || IS_GITHUB_PAGES){
     $("updatePrompt")?.classList.remove("show");
     return;
   }
