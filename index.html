@@ -2990,6 +2990,29 @@ html.jesus-ios-fast-boot #splash{display:none!important;visibility:hidden!import
   <div class="splash-bar"><i></i></div>
 </div>
 
+<!-- iOS FIRST-PAINT BOOT GUARD: hide the splash before the rest of this large document finishes parsing. -->
+<script id="ios-first-paint-boot-guard">
+(function(){
+  "use strict";
+  var done=false;
+  function releaseSplash(){
+    if(done) return;
+    var s=document.getElementById("splash");
+    if(!s) return;
+    done=true;
+    s.classList.add("gone");
+    window.setTimeout(function(){ try{s.remove();}catch(_){} }, 280);
+  }
+  // Run as soon as this point in the HTML is parsed, then again on the first frames.
+  try{ window.requestAnimationFrame(function(){
+    window.requestAnimationFrame(releaseSplash);
+  }); }catch(_){}
+  window.setTimeout(releaseSplash, 450);
+  document.addEventListener("DOMContentLoaded", releaseSplash, {once:true});
+  window.addEventListener("pageshow", releaseSplash, {once:false, passive:true});
+})();
+</script>
+
 <div id="offlineBar">You are offline</div>
 
 <div id="maintenance">
@@ -12716,7 +12739,7 @@ function hideSplash(){
   const splash = $("splash");
   if(!splash) return;
   splash.classList.add("gone");
-  setTimeout(()=>splash.remove(), 800);
+  setTimeout(()=>{try{splash.remove();}catch(_){ }}, 280);
 }
 
 updateBibleProgressUI();
@@ -12724,7 +12747,8 @@ renderJournal();
 renderAudioVoices();
 
 // Safety boot: never let a failed API/local-data call trap the app on the splash screen.
-setTimeout(hideSplash, 1200);
+setTimeout(hideSplash, 700);
+window.addEventListener("pageshow", hideSplash, {passive:true});
 
 async function init(){
   repairLocalStorage();
