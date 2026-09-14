@@ -98,6 +98,17 @@ body::before{
 }
 button,input,textarea,select{font:inherit;color:inherit;}
 button{border:0;cursor:pointer;background:none;}
+/* iOS touch recovery: keep the page tappable/scrollable on first load. Modal-open still owns its lock. */
+html.ios-touch-ready:not(.modal-open), html.ios-touch-ready:not(.modal-open) body{
+  overflow-y:auto!important;
+  touch-action:pan-y!important;
+  -webkit-overflow-scrolling:touch;
+}
+html.ios-touch-ready:not(.modal-open) body{
+  position:static!important;
+  top:auto!important;left:auto!important;right:auto!important;width:100%!important;
+}
+
 img{display:block;max-width:100%;}
 ::selection{background:rgba(90,108,240,.3);}
 ::-webkit-scrollbar{width:6px;height:6px;}
@@ -10132,7 +10143,7 @@ function renderHero(){
     div.innerHTML = `
       <img alt="${esc(s.title || "Jesus")}" loading="eager" fetchpriority="${i === 0 ? "high" : "auto"}" decoding="async"
            style="object-position:${esc(s.pos || "center center")}"
-           onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='https://upload.wikimedia.org/wikipedia/commons/a/a7/Jacopo_Tintoretto_-_Christ_at_the_Sea_of_Galilee_-_WGA22616.jpg';}else{this.removeAttribute('src');this.parentElement.classList.add('img-failed');}">
+           onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='https://upload.wikimedia.org/wikipedia/commons/a/a7/Jacopo_Tintoretto_-_Christ_at_the_Sea_of_Galilee_-_WGA22616.jpg';}else{this.removeAttribute('src');this.style.display='none';this.parentElement.classList.add('img-failed');}">
       <div class="hero-content">
         <div class="hero-title">${esc(s.title || "Jesus Christ")}</div>
         <div class="hero-verse" id="heroVerse${i}">Loading Scripture</div>
@@ -13140,13 +13151,11 @@ window.addEventListener("popstate", ()=>{
 });
 if(!history.state?.appShell) history.replaceState({appShell:true},"",location.href);
 
-/* Prevent accidental double-tap zoom */
+/* iOS tap safety: do not cancel document touchend; Safari needs the native touch→click synthesis. */
 let lastTouchEnd = 0;
 document.addEventListener("touchend", e => {
-  const now = Date.now();
-  if(now - lastTouchEnd <= 300) e.preventDefault();
-  lastTouchEnd = now;
-}, { passive:false });
+  lastTouchEnd = Date.now();
+}, { passive:true });
 
 document.addEventListener("DOMContentLoaded",setupParallel);
 
@@ -14059,6 +14068,43 @@ function applyAudioSourceFilter(){
   window.addEventListener('pageshow',run,{passive:true});
   var mo=new MutationObserver(function(){hideAndroidUpdateUI();});
   mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
+})();
+</script>
+
+<script id="ios-final-interaction-recovery">
+(function(){
+  "use strict";
+  function recover(){
+    try{
+      var root=document.documentElement, body=document.body;
+      if(!root || !body) return;
+      root.classList.add("ios-touch-ready");
+      var openModal=root.querySelectorAll(".modal.show");
+      if(!openModal.length){
+        root.classList.remove("modal-open");
+        body.classList.remove("modal-open");
+        body.classList.remove("scroll-locked");
+        body.style.position=""; body.style.top=""; body.style.left="";
+        body.style.right=""; body.style.width=""; body.style.overflow="";
+      }
+      var splash=document.getElementById("splash");
+      if(splash){splash.classList.add("gone");splash.setAttribute("aria-hidden","true");}
+      var maint=document.getElementById("maintenance");
+      if(maint && !maint.classList.contains("show")) maint.style.display="none";
+      var update=document.getElementById("updatePrompt");
+      if(update && !update.classList.contains("show")) update.style.display="none";
+      var home=document.getElementById("home");
+      if(home && typeof window.showPage==='function'){
+        try{window.showPage("home");}catch(_){}
+      }
+      if(typeof window.renderHero==='function'){ try{window.renderHero();}catch(_){} }
+    }catch(_){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',recover,{once:true});
+  else recover();
+  window.addEventListener('pageshow',recover,{passive:true});
+  setTimeout(recover,600);
+  setTimeout(recover,1800);
 })();
 </script>
 </body>
