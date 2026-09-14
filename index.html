@@ -11053,11 +11053,8 @@ function extractRemoteAppVersion(text){
 }
 
 function showIOSRefreshing(){
-  if(document.getElementById("iosAutoUpdating")) return;
-  const el=document.createElement("div");
-  el.id="iosAutoUpdating";
-  el.innerHTML='<div class="ios-auto-update-card"><div class="ios-auto-update-icon">↻</div><div class="ios-auto-update-title">Updating JESUS Bible…</div><div class="ios-auto-update-sub">Loading the latest version</div></div>' ;
-  document.body.appendChild(el);
+  // Silent background refresh: never block the app with an update popup.
+  return;
 }
 
 async function checkIOSAutoUpdate(force=false){
@@ -11098,11 +11095,11 @@ async function checkIOSAutoUpdate(force=false){
     try{localStorage.setItem(IOS_UPDATE_SKIP_KEY,remoteVersion);}catch(_){}
     if(sessionStorage.getItem(IOS_UPDATE_REFRESH_KEY)==="1") return false;
     sessionStorage.setItem(IOS_UPDATE_REFRESH_KEY,"1");
-    showIOSRefreshing();
+    // Refresh silently in the background; no modal, blur, spinner or blocking layer.
     setTimeout(()=>{
       const bust=base+(base.includes("?")?"&":"?")+"__jesus_refresh="+Date.now();
       window.location.replace(bust);
-    },700);
+    },120);
     return true;
   }catch(e){
     console.warn("Web auto-update check failed",e);
@@ -11113,9 +11110,10 @@ async function checkIOSAutoUpdate(force=false){
 function initIOSAutoUpdate(){
   if(!IS_IOS && !IS_GITHUB_PAGES) return;
   // iOS/Web must never show the Android APK update prompt.
-  const p=$("updatePrompt"); if(p) p.classList.remove("show");
-  const q=$("quickUpdate"); if(q) q.style.display="none";
-  checkIOSAutoUpdate(true);
+  const p=$("updatePrompt"); if(p){ p.classList.remove("show"); p.style.display="none"; }
+  const q=$("quickUpdate"); if(q){ q.classList.remove("show"); q.style.display="none"; }
+  // Start the check after the first paint so the app opens immediately.
+  setTimeout(()=>checkIOSAutoUpdate(true),0);
   clearInterval(iosUpdateTimer);
   iosUpdateTimer=setInterval(()=>{
     if(document.visibilityState==="visible") checkIOSAutoUpdate(false);
