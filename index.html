@@ -1,16 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<head><meta name="jesus-web-version" content="1.0.0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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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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">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#5a6cf0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="JESUS">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="format-detection" content="telephone=no">
-<meta name="jesus-app-version" content="3.0.4">
-<meta name="jesus-web-version" content="1.0.0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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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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">
 <meta name="description" content="JESUS — Holy Bible. Read, search, save, memorise and share the Word of God.">
 <title>JESUS</title>
 <style>
@@ -1705,26 +1701,6 @@ html[data-theme="dark"] .quick-label{color:var(--text)!important;}
 
 /* Offline mode: hide legacy Bible API connection notice completely. */
 #connectionNotice { display:none !important; }
-
-/* iOS auto-update UI */
-#iosAutoUpdating{position:fixed;inset:0;z-index:100001;display:grid;place-items:center;background:rgba(5,8,16,.48);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:24px;}
-.ios-auto-update-card{width:min(92vw,360px);padding:24px 20px;border-radius:24px;background:rgba(255,255,255,.96);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.25);}
-.ios-auto-update-icon{width:54px;height:54px;border-radius:17px;margin:0 auto 12px;display:grid;place-items:center;background:linear-gradient(145deg,#5a6cf0,#8b5cf6);color:#fff;font-size:28px;font-weight:900;animation:iosUpdateSpin 1s linear infinite;}
-.ios-auto-update-title{font-size:16px;font-weight:950;color:#10162a;}
-.ios-auto-update-sub{margin-top:6px;font-size:10px;font-weight:700;color:#68738d;}
-@keyframes iosUpdateSpin{to{transform:rotate(360deg);}}
-
-/* iPhone/iPad compatibility layer — safe areas, Safari viewport and touch behavior */
-html,body{width:100%;min-height:100%;-webkit-text-size-adjust:100%;}
-body{padding-bottom:env(safe-area-inset-bottom);}
-button,a,input,select,textarea{touch-action:manipulation;}
-button,input,select,textarea{font:inherit;}
-@supports (-webkit-touch-callout:none){
-  body{min-height:-webkit-fill-available;}
-  .app-shell,.screen,.modal,.sheet,.bottom-nav{padding-bottom:max(0px,env(safe-area-inset-bottom));}
-  input,textarea,select{font-size:16px;}
-  audio,video{max-width:100%;}
-}
 </style>
 
 <style>
@@ -4186,12 +4162,6 @@ html[data-theme="dark"] .app-header,html[data-theme="sepia"] .app-header{
    CONSTANTS
 ========================================================= */
 const APP_VERSION = "3.0.3";
-const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-const IS_GITHUB_PAGES = /(^|\\.)github\\.io$/i.test(location.hostname);
-const GITHUB_WEB_VERSION = String(document.querySelector('meta[name="jesus-web-version"]')?.content || "1.0.0").trim();
-const IS_STANDALONE_IOS = IS_IOS && (window.navigator.standalone === true ||
-  window.matchMedia?.("(display-mode: standalone)")?.matches === true);
 const API = "https://bible.helloao.org/api";
 const SUPABASE_URL = "https://frriyxtkvyrghcntpvnl.supabase.co";
 const SUPABASE_KEY = "sb_publishable_1yPloy7ItmdZjMrIn6gL_Q_uBWIutwu";
@@ -10971,7 +10941,6 @@ function applyConfig(){
   }else{ $("maintenance").classList.remove("show"); }
 
   checkForUpdate();
-  initIOSAutoUpdate();
   renderPrayer();
   renderHero();
   updateFeatureVisibility();
@@ -10979,7 +10948,7 @@ function applyConfig(){
   const updateQuick = $("quickUpdate");
   if(updateQuick){
     const ui = getUpdateInfo();
-    const showUpdate = !IS_IOS && !IS_GITHUB_PAGES && ui.enabled && ui.timed && ui.hasPublishedFile && ui.isNewer && !!ui.url && !ui.acknowledged;
+    const showUpdate = ui.enabled && ui.timed && ui.hasPublishedFile && ui.isNewer && !!ui.url && !ui.acknowledged;
     updateQuick.style.display = showUpdate ? "" : "none";
     updateQuick.title = ui.u.title || "Update";
   }
@@ -11012,109 +10981,6 @@ function updateFeatureVisibility(){
   const festivalEnabled = config.festivals?.enabled !== false;
   if(festivalQuick) festivalQuick.style.display = festivalEnabled ? "" : "none";
   if(festivalMenu) festivalMenu.style.display = festivalEnabled ? "" : "none";
-}
-
-/* =========================================================
-   iOS / GITHUB WEB AUTO UPDATE
-   - Android keeps its existing APK update system below.
-   - iPhone/iPad and GitHub Pages web users check the live index.html itself.
-   - A version marker is read from the remote <head>, so no extra
-     version.json file is required.
-========================================================= */
-const IOS_UPDATE_CHECK_MS = 90000;
-const IOS_UPDATE_SKIP_KEY = "jesus_ios_update_last_version";
-const IOS_UPDATE_REFRESH_KEY = "jesus_ios_update_refreshing";
-let iosUpdateTimer = 0;
-
-function getLiveHtmlUrl(){
-  try{
-    const url = new URL("index.html", location.href);
-    url.search = "";
-    url.hash = "";
-    return url.href;
-  }catch(_){
-    return location.href.split("?")[0].split("#")[0];
-  }
-}
-
-function extractRemoteAppVersion(text){
-  const m = String(text || "").match(/<meta\s+name=["'](?:jesus-web-version|jesus-app-version)["']\s+content=["']([^"']+)["']/i);
-  return m ? String(m[1]).trim() : "";
-}
-
-function showIOSRefreshing(){
-  if(document.getElementById("iosAutoUpdating")) return;
-  const el=document.createElement("div");
-  el.id="iosAutoUpdating";
-  el.innerHTML='<div class="ios-auto-update-card"><div class="ios-auto-update-icon">↻</div><div class="ios-auto-update-title">Updating JESUS Bible…</div><div class="ios-auto-update-sub">Loading the latest version</div></div>' ;
-  document.body.appendChild(el);
-}
-
-async function checkIOSAutoUpdate(force=false){
-  if(!IS_IOS && !IS_GITHUB_PAGES) return false;
-  if(!navigator.onLine && !force) return false;
-  try{
-    const base=getLiveHtmlUrl();
-    const url=base+(base.includes("?")?"&":"?")+"__jesus_update_check="+Date.now();
-    const res=await fetch(url,{method:"GET",cache:"no-store",credentials:"same-origin",redirect:"follow"});
-    if(!res.ok) return false;
-
-    let remoteText="";
-    // Read only the beginning of the document; the version marker is in <head>.
-    if(res.body?.getReader){
-      const reader=res.body.getReader();
-      const decoder=new TextDecoder();
-      let done=false;
-      while(!done && remoteText.length<160000){
-        const part=await reader.read();
-        done=part.done;
-        if(part.value) remoteText += decoder.decode(part.value,{stream:!done});
-        if(remoteText.includes('</head>')) break;
-      }
-      try{reader.cancel();}catch(_){}
-    }else{
-      remoteText=(await res.text()).slice(0,160000);
-    }
-
-    const remoteVersion=extractRemoteAppVersion(remoteText);
-    if(!remoteVersion) return false;
-    const localWebVersion = String(GITHUB_WEB_VERSION || "1.0.0").trim();
-    const cmp=typeof cmpVersion==='function' ? cmpVersion(remoteVersion,localWebVersion) : 0;
-    if(cmp<=0){
-      try{localStorage.setItem(IOS_UPDATE_SKIP_KEY,remoteVersion);}catch(_){}
-      return false;
-    }
-
-    try{localStorage.setItem(IOS_UPDATE_SKIP_KEY,remoteVersion);}catch(_){}
-    if(sessionStorage.getItem(IOS_UPDATE_REFRESH_KEY)==="1") return false;
-    sessionStorage.setItem(IOS_UPDATE_REFRESH_KEY,"1");
-    showIOSRefreshing();
-    setTimeout(()=>{
-      const bust=base+(base.includes("?")?"&":"?")+"__jesus_refresh="+Date.now();
-      window.location.replace(bust);
-    },700);
-    return true;
-  }catch(e){
-    console.warn("Web auto-update check failed",e);
-    return false;
-  }
-}
-
-function initIOSAutoUpdate(){
-  if(!IS_IOS && !IS_GITHUB_PAGES) return;
-  // iOS/Web must never show the Android APK update prompt.
-  const p=$("updatePrompt"); if(p) p.classList.remove("show");
-  const q=$("quickUpdate"); if(q) q.style.display="none";
-  checkIOSAutoUpdate(true);
-  clearInterval(iosUpdateTimer);
-  iosUpdateTimer=setInterval(()=>{
-    if(document.visibilityState==="visible") checkIOSAutoUpdate(false);
-  },IOS_UPDATE_CHECK_MS);
-  window.addEventListener("pageshow",()=>checkIOSAutoUpdate(true),{passive:true});
-  document.addEventListener("visibilitychange",()=>{
-    if(document.visibilityState==="visible") checkIOSAutoUpdate(true);
-  });
-  window.addEventListener("online",()=>checkIOSAutoUpdate(true),{passive:true});
 }
 
 /* =========================================================
@@ -11195,10 +11061,6 @@ function showUpdateProgress(percent,status,label){
   if(status)$("updateProgressStatus").textContent=status;
 }
 async function checkForUpdate(){
-  if(IS_IOS || IS_GITHUB_PAGES){
-    $("updatePrompt")?.classList.remove("show");
-    return;
-  }
   try{
     const {u,latest,url,enabled,timed,hasPublishedFile,isNewer,fingerprint,effectiveVersion}=getUpdateInfo();
     const prompt=$("updatePrompt"); if(!prompt)return;
@@ -11220,10 +11082,6 @@ async function checkForUpdate(){
   }catch(e){console.warn("Update check failed",e);}
 }
 async function downloadAndUpdate(){
-  if(IS_IOS || IS_GITHUB_PAGES){
-    await checkIOSAutoUpdate(true);
-    return;
-  }
   const ui=getUpdateInfo();
   if(!ui.url){toast("Update file is not available yet");return;}
   const btn=$("updateBtn");
@@ -13947,36 +13805,6 @@ function applyAudioSourceFilter(){
     if(typeof audioSetButtonState==='function') audioSetButtonState(!!isSpeaking);
   });
   setTimeout(()=>{renderManualAudioChapter(); if(typeof audioSetButtonState==='function') audioSetButtonState(!!isSpeaking);},80);
-})();
-</script>
-
-<script>
-/* iOS runtime safeguards: never depend on autoplay, preserve inline media, and
-   provide a reliable viewport height for Safari's dynamic address bar. */
-(function(){
-  'use strict';
-  function setIOSViewport(){
-    var h=window.visualViewport?window.visualViewport.height:window.innerHeight;
-    if(h) document.documentElement.style.setProperty('--ios-vh',h+'px');
-  }
-  setIOSViewport();
-  window.addEventListener('resize',setIOSViewport,{passive:true});
-  window.visualViewport&&window.visualViewport.addEventListener('resize',setIOSViewport,{passive:true});
-  function patchMedia(){
-    document.querySelectorAll('audio,video').forEach(function(media){
-      media.setAttribute('playsinline','');
-      media.setAttribute('webkit-playsinline','');
-      media.preload=media.preload||'metadata';
-    });
-  }
-  patchMedia();
-  if(window.MutationObserver){
-    new MutationObserver(patchMedia).observe(document.documentElement,{subtree:true,childList:true});
-  }
-  // iOS Safari has no beforeinstallprompt event; keep the page usable and
-  // expose a small helper for any existing install UI without showing an APK.
-  window.JESUS_IOS_COMPATIBLE=true;
-  window.JESUS_IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 })();
 </script>
 </body>
